@@ -1,0 +1,17 @@
+FROM golang:1.17-alpine3.15 AS build
+
+ARG COMMIT=cff57ab0758ddba2fbc1e3c0e2256fdd23edea05
+
+RUN wget -O- https://github.com/kcp-dev/kcp/archive/$COMMIT.tar.gz | tar zxvf - && \
+    cd kcp-$COMMIT && \
+    go build -o /kcp ./cmd/kcp
+
+
+FROM alpine:3.15.0
+
+COPY --from=build /kcp /usr/local/bin/kcp
+
+ENTRYPOINT ["kcp", "start"]
+
+
+

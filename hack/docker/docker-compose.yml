@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  kcp:
+    build:
+      dockerfile: ./Dockerfile.kcp
+      context: "."
+    command:
+      - /kcp start
+    ports:
+      - "6443:6443"
+    volumes:
+      - ./data:/.kcp/
