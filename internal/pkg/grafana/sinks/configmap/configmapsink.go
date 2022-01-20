@@ -41,6 +41,7 @@ func (d *DashboardSink) patch(ctx context.Context, filename string, op string, v
 	if err != nil {
 		return fmt.Errorf("marshalling Apply patch: %w", err)
 	}
+	// TODO: handle case when `data` does not exist (configmap is empty)
 	if _, err := d.k8s.CoreV1().ConfigMaps(d.namespace).Patch(ctx, d.configMapName,
 		types.JSONPatchType,
 		patchOp,
@@ -54,14 +55,16 @@ func (d *DashboardSink) patch(ctx context.Context, filename string, op string, v
 }
 
 func (d *DashboardSink) makePatchOp(op string, filename string, value interface{}) ([]byte, error) {
-	return json.Marshal(&struct {
+	return json.Marshal([]struct {
 		Op    string      `json:"op"`
 		Path  string      `json:"path"`
 		Value interface{} `json:"value"`
 	}{
-		Op:    op,
-		Path:  fmt.Sprintf("/data/%s", filename),
-		Value: value,
+		{
+			Op:    op,
+			Path:  fmt.Sprintf("/data/%s", filename),
+			Value: value,
+		},
 	})
 
 }
