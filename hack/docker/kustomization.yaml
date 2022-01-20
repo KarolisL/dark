@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../..//config/crd
+  - ../..//config/rbac
+
+namespace: dark
+
+patches:
+  - target:
+      kind: Deployment
+      name: dark
+    patch: |-
+      - op: replace
+        path: "/spec/template/spec/containers/0/env"
+        value:
+          - name: GRAFANA_HOST
+            value: http://grafana.grafana.svc
+          - name: GRAFANA_TOKEN
+            valueFrom:
+              # kubectl create secret  generic -n dark grafana-auth --from-literal token=<TOKEN>
+              secretKeyRef:
+                key: token
+                name: grafana-auth
+
+

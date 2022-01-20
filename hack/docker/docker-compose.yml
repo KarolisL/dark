@@ -1,5 +1,16 @@
 version: "3.8"
 services:
+  grafana:
+    image: grafana/grafana-enterprise:8.2.0
+    ports:
+      - 3000:3000
+    environment:
+      - GF_AUTH_BASIC_ENABLED=false
+      - GF_AUTH_PROXY_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Acme
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_USERS_ALLOW_SIGN_UP=false
   kcp:
     build:
       dockerfile: ./Dockerfile.kcp

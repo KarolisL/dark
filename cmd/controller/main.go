@@ -24,7 +24,7 @@ import (
 	k8skevingomezfrv1 "github.com/K-Phoen/dark/api/v1"
 	k8skevingomezfrv1alpha1 "github.com/K-Phoen/dark/api/v1alpha1"
 	"github.com/K-Phoen/dark/internal/pkg/controllers"
-	//+kubebuilder:scaffold:imports
+	// +kubebuilder:scaffold:imports
 )
 
 var (
@@ -37,7 +37,7 @@ func init() {
 
 	utilruntime.Must(k8skevingomezfrv1.AddToScheme(scheme))
 	utilruntime.Must(k8skevingomezfrv1alpha1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
+	// +kubebuilder:scaffold:scheme
 }
 
 func main() {
@@ -76,10 +76,16 @@ func main() {
 		//nolint:gosec
 		InsecureSkipVerify: viper.GetBool("insecure-skip-verify"),
 	})
+
+	grabanaOpts := []grabana.Option{}
+	if token := viper.GetString("grafana-token"); token != "" {
+		grabanaOpts = append(grabanaOpts, grabana.WithAPIToken(token))
+	}
+
 	grabanaClient := grabana.NewClient(
 		httpClient,
 		viper.GetString("grafana-host"),
-		grabana.WithAPIToken(viper.GetString("grafana-token")),
+		grabanaOpts...,
 	)
 
 	// controllers setup
@@ -96,7 +102,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = controllers.StartGrafanaDashboardReconciler(mgr, grabanaClient); err != nil {
+	if err = controllers.StartGrafanaDashboardReconciler(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GrafanaDashboard")
 		os.Exit(1)
 	}
@@ -104,7 +110,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Datasource")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
+	// +kubebuilder:scaffold:builder
 
 	// liveness and readiness probes
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

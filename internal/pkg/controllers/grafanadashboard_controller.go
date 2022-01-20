@@ -2,11 +2,15 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	k8skevingomezfrv1 "github.com/K-Phoen/dark/api/v1"
 	"github.com/K-Phoen/dark/internal/pkg/grafana"
-	"github.com/K-Phoen/grabana"
+	"github.com/K-Phoen/dark/internal/pkg/grafana/materializers"
+	"github.com/K-Phoen/dark/internal/pkg/grafana/materializers/grafonnet"
+	"github.com/K-Phoen/dark/internal/pkg/grafana/sinks/configmap"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,10 +20,8 @@ import (
 
 const grafanaDashboardFinalizerName = "grafanadashboards.k8s.kevingomez.fr/finalizer"
 
-type dashboardManager interface {
-	FromRawSpec(ctx context.Context, folderName string, uid string, rawJSON []byte) error
-	Delete(ctx context.Context, uid string) error
-}
+type dashboardMaterializer = materializers.Interface
+type Sink = grafana.Sink
 
 // GrafanaDashboardReconciler reconciles a GrafanaDashboard object
 type GrafanaDashboardReconciler struct {
@@ -28,23 +30,31 @@ type GrafanaDashboardReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	Dashboards dashboardManager
+	Sink         Sink
+	Materializer dashboardMaterializer
 }
 
-func StartGrafanaDashboardReconciler(ctrlManager ctrl.Manager, grabanaClient *grabana.Client) error {
+func StartGrafanaDashboardReconciler(ctrlManager ctrl.Manager) error {
+	k8s, err := kubernetes.NewForConfig(ctrlManager.GetConfig())
+	if err != nil {
+		return fmt.Errorf("creating k8s client: %w", err)
+	}
+
 	reconciler := &GrafanaDashboardReconciler{
-		Client:     ctrlManager.GetClient(),
-		Scheme:     ctrlManager.GetScheme(),
-		Recorder:   ctrlManager.GetEventRecorderFor("grafanadashboard-controller"),
-		Dashboards: grafana.NewCreator(grabanaClient),
+		Client:   ctrlManager.GetClient(),
+		Scheme:   ctrlManager.GetScheme(),
+		Recorder: ctrlManager.GetEventRecorderFor("grafanadashboard-controller"),
+		// TODO: config values
+		Sink:         configmap.NewDashboardSink(k8s, "default", "todo"),
+		Materializer: grafonnet.New(),
 	}
 
 	return reconciler.SetupWithManager(ctrlManager)
 }
 
-//+kubebuilder:rbac:groups=k8s.kevingomez.fr,resources=grafanadashboards,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=k8s.kevingomez.fr,resources=grafanadashboards/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=k8s.kevingomez.fr,resources=grafanadashboards/finalizers,verbs=update
+// +kubebuilder:rbac:groups=k8s.kevingomez.fr,resources=grafanadashboards,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=k8s.kevingomez.fr,resources=grafanadashboards/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=k8s.kevingomez.fr,resources=grafanadashboards/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -83,7 +93,7 @@ func (r *GrafanaDashboardReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			logger.Info("finalizer found, deleting dashboard from grafana")
 
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.Dashboards.Delete(ctx, dashboard.Name); err != nil {
+			if err := r.Sink.Delete(ctx, dashboard.Name); err != nil {
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried
 				return ctrl.Result{}, err
@@ -101,7 +111,9 @@ func (r *GrafanaDashboardReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// proceed with create/update reconciliation
-	if err := r.Dashboards.FromRawSpec(ctx, dashboard.Folder, dashboard.ObjectMeta.Name, dashboard.Spec.Raw); err != nil {
+	// if err := r.Dashboards.FromRawSpec(ctx, dashboard.Folder, dashboard.ObjectMeta.Name, dashboard.Spec.Raw); err != nil {
+	var filename, body string
+	if err := r.Sink.Apply(ctx, filename, body); err != nil {
 		logger.Error(err, "could not apply GrafanaDashboard in Grafana")
 
 		r.updateStatus(ctx, dashboard, err)

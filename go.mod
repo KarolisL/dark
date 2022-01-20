@@ -6,6 +6,8 @@ require (
 	github.com/K-Phoen/grabana v0.20.6
 	github.com/K-Phoen/sdk v0.8.1
 	github.com/go-logr/logr v1.2.0
+	github.com/google/go-jsonnet v0.18.0
+	github.com/grafana-tools/sdk v0.0.0-20211220201350-966b3088eec9
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
 	github.com/spf13/cobra v1.3.0
