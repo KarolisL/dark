@@ -45,8 +45,9 @@ func StartGrafanaDashboardReconciler(ctrlManager ctrl.Manager) error {
 		Scheme:   ctrlManager.GetScheme(),
 		Recorder: ctrlManager.GetEventRecorderFor("grafanadashboard-controller"),
 		// TODO: config values
-		Sink:         configmap.NewDashboardSink(k8s, "default", "todo"),
-		Materializer: grafonnet.New(),
+		Sink: configmap.NewDashboardSink(k8s, "default", "todo"),
+		// TODO: configurable option
+		Materializer: grafonnet.New([]string{"internal/pkg/grafana/materializers/grafonnet/vendor"}),
 	}
 
 	return reconciler.SetupWithManager(ctrlManager)
@@ -111,9 +112,12 @@ func (r *GrafanaDashboardReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// proceed with create/update reconciliation
-	// if err := r.Dashboards.FromRawSpec(ctx, dashboard.Folder, dashboard.ObjectMeta.Name, dashboard.Spec.Raw); err != nil {
-	var filename, body string
-	if err := r.Sink.Apply(ctx, filename, body); err != nil {
+	evaluated, err := r.Materializer.FromSpec(ctx, dashboard.Folder, dashboard.Name, dashboard.Spec.Raw)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("evaluating jsonnet: %w", err)
+	}
+
+	if err := r.Sink.Apply(ctx, evaluated.Folder, evaluated.Data); err != nil {
 		logger.Error(err, "could not apply GrafanaDashboard in Grafana")
 
 		r.updateStatus(ctx, dashboard, err)

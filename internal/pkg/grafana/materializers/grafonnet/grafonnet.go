@@ -2,6 +2,7 @@ package grafonnet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/K-Phoen/dark/internal/pkg/grafana/materializers"
@@ -9,26 +10,46 @@ import (
 )
 
 type Materializer struct {
+	libPath []string
 }
 
 var _ materializers.Interface = (*Materializer)(nil)
 
-func New() *Materializer {
-	return &Materializer{}
+func New(libPath []string) *Materializer {
+	if len(libPath) == 0 {
+		libPath = []string{"./vendor"}
+	}
+	return &Materializer{libPath: libPath}
 }
 
 func (g *Materializer) FromSpec(ctx context.Context, folder, dashboardName string, spec []byte) (*materializers.Dashboard, error) {
-	panic("a")
+	specz := struct {
+		Jsonnet string `json:"jsonnet"`
+	}{}
+	err := json.Unmarshal(spec, &specz)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshalling spec: %w", err)
+	}
+	data, err := g.fromBytes(ctx, []byte(specz.Jsonnet))
+	if err != nil {
+		return nil, fmt.Errorf("evaluating jsonnet: %w", err)
+	}
+
+	return &materializers.Dashboard{
+		Data:   data,
+		Folder: folder,
+		Name:   dashboardName,
+	}, nil
 }
 
 func (g *Materializer) fromBytes(ctx context.Context, spec []byte) (string, error) {
 	vm := jsonnet.MakeVM()
 	vm.Importer(&jsonnet.FileImporter{
-		JPaths: []string{"./vendor"},
+		JPaths: g.libPath,
 	})
-	json, err := vm.EvaluateAnonymousSnippet("<fromSpec>.jsonnet", string(spec))
+	result, err := vm.EvaluateAnonymousSnippet("<fromSpec>.jsonnet", string(spec))
 	if err != nil {
-		return "", fmt.Errorf("evaluating: %w", err)
+		return "", fmt.Errorf("evaluating jsonnet: %w", err)
 	}
-	return json, nil
+	return result, nil
 }

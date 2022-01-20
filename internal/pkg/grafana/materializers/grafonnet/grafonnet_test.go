@@ -23,13 +23,14 @@ func TestMaterializer_fromBytes(t *testing.T) {
 	tests := []test{
 		func() test {
 			name := "sample_grafonnet"
-			spec := loadFrom(fmt.Sprintf("./testing/%s.jsonnet", name))
+			jsonnetBody := loadFrom(fmt.Sprintf("./testing/%s.jsonnet", name))
+			spec := string(jsonnetBody)
 			result := string(loadFrom(fmt.Sprintf("./testing/%s.json", name)))
 			return test{
 				name: name,
 				args: args{
 					ctx:  nil,
-					spec: spec,
+					spec: []byte(spec),
 				},
 				want: result,
 			}
@@ -38,15 +39,15 @@ func TestMaterializer_fromBytes(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Materializer{}
+			g := New(nil)
 			got, err := g.fromBytes(tt.args.ctx, tt.args.spec)
 
-			if tt.wantErr == nil {
+			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.JSONEq(t, tt.want, got)
 		})
 	}
 }
